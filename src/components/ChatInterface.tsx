@@ -2,6 +2,15 @@
 import { useState } from "react";
 import { Send, Copy, Edit } from "lucide-react";
 import { EditMessageDialog } from "@/components/ui/edit-message-dialog";
+import Groq from 'groq-sdk';
+
+// NOTE: Setting `dangerouslyAllowBrowser` to `true` exposes your API key to the client-side.
+// In a production environment, you should handle API calls through a server-side proxy
+// to avoid exposing your credentials.
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+  dangerouslyAllowBrowser: true,
+});
 
 interface Message {
   id: string;
@@ -10,24 +19,9 @@ interface Message {
   timestamp: Date;
 }
 
-const dummyAiResponses = [
-  "I understand what you're saying. Could you tell me more about that?",
-  "That's an interesting perspective. Let me analyze that for you.",
-  "I can help you with that. Here's what I think...",
-  "Based on my analysis, I would suggest considering these points...",
-  "Let me process that information and provide you with a detailed response.",
-];
-
 export const ChatInterface = () => {
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome",
-      content: "Hi there! I'm Zephyrine, your AI assistant. How can I help you today?",
-      isAi: true,
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [messageBeingEdited, setMessageBeingEdited] = useState<Message | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -37,17 +31,14 @@ export const ChatInterface = () => {
     setMessageBeingEdited(null);
   };
 
-  const handleMessageSave = (editedContent: string) => {
+  const handleMessageSave = async (editedContent: string) => {
     if (!messageBeingEdited) return;
 
-    // Find the index of the message being edited
     const editedMessageIndex = messages.findIndex(msg => msg.id === messageBeingEdited.id);
     if (editedMessageIndex === -1) return;
 
-    // Create a new array with messages up to the message before the edited message
     const updatedMessages = messages.slice(0, editedMessageIndex);
 
-      // Add the edited message with updated content, and remove messages below
     const editedMessage = {
       ...messages[editedMessageIndex],
       content: editedContent,
@@ -57,67 +48,150 @@ export const ChatInterface = () => {
     updatedMessages.splice(editedMessageIndex + 1);
 
     setMessages(updatedMessages);
+    setMessage("");
 
-    // Generate new AI response
-      setTimeout(() => {
-        const aiMessage: Message = {
-          id: `ai-${Date.now()}`,
-          content: generateDummyResponse(),
-          isAi: true,
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, aiMessage]);
-      }, 1000);
+    // Add AI message placeholder
+    const aiMessage: Message = {
+        id: `ai-${Date.now()}`,
+        content: "",
+        isAi: true,
+        timestamp: new Date(),
+    };
+
+    setMessages(prev => [...prev, aiMessage]);
+
+    try {
+        const chatCompletion = await groq.chat.completions.create({
+            messages: [
+                {
+                    role: "user",
+                    content: editedContent,
+                }
+            ],
+            model: "mixtral-8x7b-32768",
+            temperature: 0.7,
+            max_tokens: 1024,
+            top_p: 1,
+            stream: true,
+            stop: null
+        });
+
+        for await (const chunk of chatCompletion) {
+            setMessages(prevMessages => {
+                const updatedMessages = [...prevMessages];
+                const aiMessageIndex = updatedMessages.findIndex(msg => msg.id === aiMessage.id);
+
+                if (aiMessageIndex !== -1) {
+                    updatedMessages[aiMessageIndex] = {
+                        ...updatedMessages[aiMessageIndex],
+                        content: updatedMessages[aiMessageIndex].content + (chunk.choices[0]?.delta?.content || '')
+                    };
+                }
+                return updatedMessages;
+            });
+        }
+    } catch (error) {
+        console.error("Error fetching from Groq:", error);
+        setMessages(prevMessages => {
+            const updatedMessages = [...prevMessages];
+            const aiMessageIndex = updatedMessages.findIndex(msg => msg.id === aiMessage.id);
+
+            if (aiMessageIndex !== -1) {
+                updatedMessages[aiMessageIndex] = {
+                    ...updatedMessages[aiMessageIndex],
+                    content: "An error occurred while fetching the response."
+                };
+            }
+            return updatedMessages;
+        });
+    }
 
     handleDialogClose();
   };
 
-  const generateDummyResponse = () => {
-    const randomIndex = Math.floor(Math.random() * dummyAiResponses.length);
-    return dummyAiResponses[randomIndex];
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
 
     if (editingMessageId) {
       setEditingMessageId(null);
     }
-    
-    // Add user message
+
     const userMessage: Message = {
       id: `user-${Date.now()}`,
         content: message,
         isAi: false,
         timestamp: new Date(),
-      };
+    };
 
-      setMessages(prev => [...prev, userMessage]);
+    setMessages(prev => [...prev, userMessage]);
+    setMessage("");
 
-      // Generate AI response
-      setTimeout(() => {
-        const aiMessage: Message = {
-          id: `ai-${Date.now()}`,
-          content: generateDummyResponse(),
-          isAi: true,
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, aiMessage]);
-    }, 1000);
-  
-  setMessage("");
+    // Add AI message placeholder
+    const aiMessage: Message = {
+        id: `ai-${Date.now()}`,
+        content: "",
+        isAi: true,
+        timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, aiMessage]);
+
+      try {
+        const chatCompletion = await groq.chat.completions.create({
+            messages: [
+                {
+                    role: "user",
+                    content: message,
+                }
+            ],
+            model: "mixtral-8x7b-32768",
+            temperature: 0.7,
+            max_tokens: 1024,
+            top_p: 1,
+            stream: true,
+            stop: null
+        });
+
+        for await (const chunk of chatCompletion) {
+            setMessages(prevMessages => {
+                const updatedMessages = [...prevMessages];
+                const aiMessageIndex = updatedMessages.findIndex(msg => msg.id === aiMessage.id);
+
+                if (aiMessageIndex !== -1) {
+                    updatedMessages[aiMessageIndex] = {
+                        ...updatedMessages[aiMessageIndex],
+                        content: updatedMessages[aiMessageIndex].content + (chunk.choices[0]?.delta?.content || '')
+                    };
+                }
+                return updatedMessages;
+            });
+        }
+    } catch (error) {
+        console.error("Error fetching from Groq:", error);
+        setMessages(prevMessages => {
+            const updatedMessages = [...prevMessages];
+            const aiMessageIndex = updatedMessages.findIndex(msg => msg.id === aiMessage.id);
+
+            if (aiMessageIndex !== -1) {
+                updatedMessages[aiMessageIndex] = {
+                    ...updatedMessages[aiMessageIndex],
+                    content: "An error occurred while fetching the response."
+                };
+            }
+            return updatedMessages;
+        });
+    }
 };
 
   const handleCopy = (content: string) => {
     navigator.clipboard.writeText(content);
   };
 
-  const handleEdit = (message: Message) => {
-    setMessageBeingEdited(message);
-    setIsEditDialogOpen(true);
-    console.log("handleEdit called", isEditDialogOpen); // Open the dialog
-  };
+    const handleEdit = (message: Message) => {
+        setMessageBeingEdited(message);
+        setIsEditDialogOpen(true);
+        console.log("handleEdit called", isEditDialogOpen);
+    };
 
   return (
     <div className="flex-1 flex flex-col h-screen">
