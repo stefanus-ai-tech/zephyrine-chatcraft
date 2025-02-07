@@ -91,12 +91,12 @@ export const ChatInterface = () => {
                 msg.isAi
                   ? "bg-secondary/50 text-foreground"
                   : "bg-primary/10 ml-auto"
-              } max-w-[80%]`}
+              } max-w-[80%] animate-fade-in`}
             >
               <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
                 <button
                   onClick={() => handleCopy(msg.content)}
-                  className="p-1 rounded-md hover:bg-background/80"
+                  className="p-1 rounded-md hover:bg-background/80 transition-colors"
                   title="Copy message"
                 >
                   <Copy className="w-4 h-4" />
@@ -104,14 +104,14 @@ export const ChatInterface = () => {
                 {!msg.isAi && (
                   <button
                     onClick={() => handleEdit(msg.id, msg.content)}
-                    className="p-1 rounded-md hover:bg-background/80"
+                    className="p-1 rounded-md hover:bg-background/80 transition-colors"
                     title="Edit message"
                   >
                     <Edit className="w-4 h-4" />
                   </button>
                 )}
               </div>
-              <p className="text-sm">{msg.content}</p>
+              <p className="text-sm pr-14">{msg.content}</p>
               <span className="text-xs text-muted-foreground mt-2 block">
                 {msg.timestamp.toLocaleTimeString()}
               </span>
@@ -127,7 +127,7 @@ export const ChatInterface = () => {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder={editingMessageId ? "Edit your message..." : "Type your message..."}
-            className="flex-1 p-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+            className="flex-1 p-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary transition-all"
           />
           <button 
             type="submit"
