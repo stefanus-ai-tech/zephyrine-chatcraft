@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { Send, Copy, Edit } from "lucide-react";
+import { EditMessageDialog } from "@/components/ui/edit-message-dialog";
 
 interface Message {
   id: string;
@@ -27,7 +28,49 @@ export const ChatInterface = () => {
       timestamp: new Date(),
     },
   ]);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [messageBeingEdited, setMessageBeingEdited] = useState<Message | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+
+  const handleDialogClose = () => {
+    setIsEditDialogOpen(false);
+    setMessageBeingEdited(null);
+  };
+
+  const handleMessageSave = (editedContent: string) => {
+    if (!messageBeingEdited) return;
+
+    // Find the index of the message being edited
+    const editedMessageIndex = messages.findIndex(msg => msg.id === messageBeingEdited.id);
+    if (editedMessageIndex === -1) return;
+
+    // Create a new array with messages up to the message before the edited message
+    const updatedMessages = messages.slice(0, editedMessageIndex);
+
+      // Add the edited message with updated content, and remove messages below
+    const editedMessage = {
+      ...messages[editedMessageIndex],
+      content: editedContent,
+      timestamp: new Date()
+    };
+    updatedMessages.push(editedMessage);
+    updatedMessages.splice(editedMessageIndex + 1);
+
+    setMessages(updatedMessages);
+
+    // Generate new AI response
+      setTimeout(() => {
+        const aiMessage: Message = {
+          id: `ai-${Date.now()}`,
+          content: generateDummyResponse(),
+          isAi: true,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, aiMessage]);
+      }, 1000);
+
+    handleDialogClose();
+  };
 
   const generateDummyResponse = () => {
     const randomIndex = Math.floor(Math.random() * dummyAiResponses.length);
@@ -39,38 +82,12 @@ export const ChatInterface = () => {
     if (!message.trim()) return;
 
     if (editingMessageId) {
-      // Find the index of the message being edited
-      const editedMessageIndex = messages.findIndex(msg => msg.id === editingMessageId);
-      if (editedMessageIndex === -1) return;
-
-      // Create a new array with messages up to the edited message
-      const updatedMessages = messages.slice(0, editedMessageIndex);
-      
-      // Add the edited message
-      const editedMessage = {
-        ...messages[editedMessageIndex],
-        content: message,
-        timestamp: new Date()
-      };
-      updatedMessages.push(editedMessage);
-
-      setMessages(updatedMessages);
       setEditingMessageId(null);
-
-      // Generate new AI response
-      setTimeout(() => {
-        const aiMessage: Message = {
-          id: `ai-${Date.now()}`,
-          content: generateDummyResponse(),
-          isAi: true,
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, aiMessage]);
-      }, 1000);
-    } else {
-      // Add user message
-      const userMessage: Message = {
-        id: `user-${Date.now()}`,
+    }
+    
+    // Add user message
+    const userMessage: Message = {
+      id: `user-${Date.now()}`,
         content: message,
         isAi: false,
         timestamp: new Date(),
@@ -87,19 +104,19 @@ export const ChatInterface = () => {
           timestamp: new Date(),
         };
         setMessages(prev => [...prev, aiMessage]);
-      }, 1000);
-    }
-    
-    setMessage("");
-  };
+    }, 1000);
+  
+  setMessage("");
+};
 
   const handleCopy = (content: string) => {
     navigator.clipboard.writeText(content);
   };
 
-  const handleEdit = (messageId: string, content: string) => {
-    setEditingMessageId(messageId);
-    setMessage(content);
+  const handleEdit = (message: Message) => {
+    setMessageBeingEdited(message);
+    setIsEditDialogOpen(true);
+    console.log("handleEdit called", isEditDialogOpen); // Open the dialog
   };
 
   return (
@@ -125,7 +142,7 @@ export const ChatInterface = () => {
                 </button>
                 {!msg.isAi && (
                   <button
-                    onClick={() => handleEdit(msg.id, msg.content)}
+                    onClick={() => handleEdit(msg)}
                     className="p-1 rounded-md hover:bg-background/80 transition-colors"
                     title="Edit message"
                   >
@@ -159,6 +176,13 @@ export const ChatInterface = () => {
           </button>
         </form>
       </div>
+
+      <EditMessageDialog
+        isOpen={isEditDialogOpen}
+        onClose={handleDialogClose}
+        messageContent={messageBeingEdited?.content || ""}
+        onSave={handleMessageSave}
+      />
     </div>
   );
 };
