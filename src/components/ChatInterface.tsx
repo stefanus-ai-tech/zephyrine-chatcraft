@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Send } from "lucide-react";
+import { Send, Copy, Edit } from "lucide-react";
 
 interface Message {
   id: string;
@@ -27,6 +27,7 @@ export const ChatInterface = () => {
       timestamp: new Date(),
     },
   ]);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
 
   const generateDummyResponse = () => {
     const randomIndex = Math.floor(Math.random() * dummyAiResponses.length);
@@ -37,27 +38,46 @@ export const ChatInterface = () => {
     e.preventDefault();
     if (!message.trim()) return;
 
-    // Add user message
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
-      content: message,
-      isAi: false,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setMessage("");
-
-    // Simulate AI response
-    setTimeout(() => {
-      const aiMessage: Message = {
-        id: `ai-${Date.now()}`,
-        content: generateDummyResponse(),
-        isAi: true,
+    if (editingMessageId) {
+      setMessages(messages.map(msg => 
+        msg.id === editingMessageId 
+          ? { ...msg, content: message }
+          : msg
+      ));
+      setEditingMessageId(null);
+    } else {
+      // Add user message
+      const userMessage: Message = {
+        id: `user-${Date.now()}`,
+        content: message,
+        isAi: false,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, aiMessage]);
-    }, 1000);
+
+      setMessages((prev) => [...prev, userMessage]);
+
+      // Simulate AI response
+      setTimeout(() => {
+        const aiMessage: Message = {
+          id: `ai-${Date.now()}`,
+          content: generateDummyResponse(),
+          isAi: true,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, aiMessage]);
+      }, 1000);
+    }
+    
+    setMessage("");
+  };
+
+  const handleCopy = (content: string) => {
+    navigator.clipboard.writeText(content);
+  };
+
+  const handleEdit = (messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setMessage(content);
   };
 
   return (
@@ -67,12 +87,30 @@ export const ChatInterface = () => {
           {messages.map((msg) => (
             <div
               key={msg.id}
-              className={`p-4 rounded-lg ${
+              className={`relative p-4 rounded-lg group ${
                 msg.isAi
                   ? "bg-secondary/50 text-foreground"
                   : "bg-primary/10 ml-auto"
               } max-w-[80%]`}
             >
+              <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                <button
+                  onClick={() => handleCopy(msg.content)}
+                  className="p-1 rounded-md hover:bg-background/80"
+                  title="Copy message"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+                {!msg.isAi && (
+                  <button
+                    onClick={() => handleEdit(msg.id, msg.content)}
+                    className="p-1 rounded-md hover:bg-background/80"
+                    title="Edit message"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
               <p className="text-sm">{msg.content}</p>
               <span className="text-xs text-muted-foreground mt-2 block">
                 {msg.timestamp.toLocaleTimeString()}
@@ -88,7 +126,7 @@ export const ChatInterface = () => {
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type your message..."
+            placeholder={editingMessageId ? "Edit your message..." : "Type your message..."}
             className="flex-1 p-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <button 
