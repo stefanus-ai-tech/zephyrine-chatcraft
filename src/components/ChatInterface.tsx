@@ -1,8 +1,14 @@
 import { useState, useEffect } from "react";
 import { Send, Copy, Edit } from "lucide-react";
 import { EditMessageDialog } from "@/components/ui/edit-message-dialog";
+import { ChatHistoryNav } from "@/components/ChatHistoryNav";
 import Groq from "groq-sdk";
-import { saveChatHistory, getChatHistory } from "@/lib/storage";
+import {
+  saveChatHistory,
+  getChatHistory,
+  getSession,
+  saveSession,
+} from "@/lib/storage";
 
 // NOTE: Setting `dangerouslyAllowBrowser` to `true` exposes your API key to the client-side.
 // In a production environment, you should handle API calls through a server-side proxy
@@ -21,6 +27,9 @@ interface Message {
 
 export const ChatInterface = () => {
   const [message, setMessage] = useState("");
+  const [currentSessionId, setCurrentSessionId] = useState<string>(
+    `session-${Date.now()}`
+  );
   const [messages, setMessages] = useState<Message[]>([]);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [messageBeingEdited, setMessageBeingEdited] = useState<Message | null>(
@@ -29,15 +38,34 @@ export const ChatInterface = () => {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedHistory = getChatHistory();
-    if (storedHistory) {
-      setMessages(storedHistory);
+    const session = getSession(currentSessionId);
+    if (session) {
+      setMessages(session.messages);
+    } else {
+      setMessages([]);
+      saveSession({
+        id: currentSessionId,
+        title: "New Chat",
+        messages: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
     }
-  }, []);
+  }, [currentSessionId]);
 
   useEffect(() => {
-    saveChatHistory(messages);
-  }, [messages]);
+    if (messages.length > 0) {
+      const session = getSession(currentSessionId);
+      if (session) {
+        saveSession({
+          ...session,
+          messages,
+          title: messages[0]?.content.slice(0, 30) || "New Chat",
+          updatedAt: new Date(),
+        });
+      }
+    }
+  }, [messages, currentSessionId]);
 
   const handleDialogClose = () => {
     setIsEditDialogOpen(false);
@@ -227,72 +255,88 @@ export const ChatInterface = () => {
     console.log("handleEdit called", isEditDialogOpen);
   };
 
+  const handleNewSession = () => {
+    setCurrentSessionId(`session-${Date.now()}`);
+  };
+
   return (
-    <div className="flex-1 flex flex-col h-screen">
-      <div className="flex-1 p-4 overflow-y-auto">
-        <div className="flex flex-col gap-4 max-w-2xl mx-auto">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`relative p-4 rounded-lg group ${
-                msg.isAi
-                  ? "bg-secondary/50 text-foreground"
-                  : "bg-primary/10 ml-auto"
-              } max-w-[80%] animate-fade-in`}
-            >
-              <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                <button
-                  onClick={() => handleCopy(msg.content)}
-                  className="p-1 rounded-md hover:bg-background/80 transition-colors"
-                  title="Copy message"
-                >
-                  <Copy className="w-4 h-4" />
-                </button>
-                {!msg.isAi && (
-                  <button
-                    onClick={() => handleEdit(msg)}
-                    className="p-1 rounded-md hover:bg-background/80 transition-colors"
-                    title="Edit message"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-              <p className="text-sm pr-14">{msg.content}</p>
-              <span className="text-xs text-muted-foreground mt-2 block">
-                {msg.timestamp.toLocaleTimeString()}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="border-t border-border p-4">
-        <form onSubmit={handleSubmit} className="max-w-2xl mx-auto flex gap-2">
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder={
-              editingMessageId ? "Edit your message..." : "Type your message..."
-            }
-            className="flex-1 p-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-          />
-          <button
-            type="submit"
-            className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <Send className="w-5 h-5" />
-          </button>
-        </form>
-      </div>
-
-      <EditMessageDialog
-        isOpen={isEditDialogOpen}
-        onClose={handleDialogClose}
-        messageContent={messageBeingEdited?.content || ""}
-        onSave={handleMessageSave}
+    <div className="flex h-screen">
+      <ChatHistoryNav
+        currentSessionId={currentSessionId}
+        onSessionSelect={setCurrentSessionId}
+        onNewSession={handleNewSession}
       />
+      <div className="flex-1 flex flex-col">
+        <div className="flex-1 p-4 overflow-y-auto">
+          <div className="flex flex-col gap-4 max-w-2xl mx-auto">
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`relative p-4 rounded-lg group ${
+                  msg.isAi
+                    ? "bg-secondary/50 text-foreground"
+                    : "bg-primary/10 ml-auto"
+                } max-w-[80%] animate-fade-in`}
+              >
+                <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                  <button
+                    onClick={() => handleCopy(msg.content)}
+                    className="p-1 rounded-md hover:bg-background/80 transition-colors"
+                    title="Copy message"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                  {!msg.isAi && (
+                    <button
+                      onClick={() => handleEdit(msg)}
+                      className="p-1 rounded-md hover:bg-background/80 transition-colors"
+                      title="Edit message"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-sm pr-14">{msg.content}</p>
+                <span className="text-xs text-muted-foreground mt-2 block">
+                  {msg.timestamp.toLocaleTimeString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-border p-4">
+          <form
+            onSubmit={handleSubmit}
+            className="max-w-2xl mx-auto flex gap-2"
+          >
+            <input
+              type="text"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder={
+                editingMessageId
+                  ? "Edit your message..."
+                  : "Type your message..."
+              }
+              className="flex-1 p-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+            />
+            <button
+              type="submit"
+              className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </form>
+        </div>
+
+        <EditMessageDialog
+          isOpen={isEditDialogOpen}
+          onClose={handleDialogClose}
+          messageContent={messageBeingEdited?.content || ""}
+          onSave={handleMessageSave}
+        />
+      </div>
     </div>
   );
 };
