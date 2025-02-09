@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Send, Copy, Edit } from "lucide-react";
 import { EditMessageDialog } from "@/components/ui/edit-message-dialog";
 import Groq from "groq-sdk";
+import { saveChatHistory, getChatHistory } from "@/lib/storage";
 
 // NOTE: Setting `dangerouslyAllowBrowser` to `true` exposes your API key to the client-side.
 // In a production environment, you should handle API calls through a server-side proxy
@@ -26,6 +27,17 @@ export const ChatInterface = () => {
     null
   );
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const storedHistory = getChatHistory();
+    if (storedHistory) {
+      setMessages(storedHistory);
+    }
+  }, []);
+
+  useEffect(() => {
+    saveChatHistory(messages);
+  }, [messages]);
 
   const handleDialogClose = () => {
     setIsEditDialogOpen(false);
