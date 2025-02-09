@@ -1,9 +1,9 @@
 
-import { MessageSquare, Image, Mic, Video } from "lucide-react";
+import { MessageSquare, Image, Mic, Video, List } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
-  icon: typeof MessageSquare;
+  icon: typeof MessageSquare | typeof List;
   label: string;
   active?: boolean;
   onClick: () => void;
@@ -30,6 +30,7 @@ interface SidebarProps {
 
 export const Sidebar = ({ activeMode, onModeChange }: SidebarProps) => {
   const modes = [
+    { icon: List, label: "History", id: "history" },
     { icon: MessageSquare, label: "Chat", id: "chat" },
     { icon: Image, label: "Image", id: "image" },
     { icon: Mic, label: "Voice", id: "voice" },
